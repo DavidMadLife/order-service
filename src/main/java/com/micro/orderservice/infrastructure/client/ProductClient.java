@@ -1,26 +1,31 @@
 package com.micro.orderservice.infrastructure.client;
 
+
 import com.micro.orderservice.application.exception.BadRequestException;
 import com.micro.orderservice.application.exception.NotFoundException;
 import com.micro.orderservice.infrastructure.client.dto.DeductStockRequest;
 import com.micro.orderservice.infrastructure.client.dto.ErrorResponse;
 import com.micro.orderservice.infrastructure.client.dto.ProductDto;
+import com.micro.orderservice.infrastructure.config.properties.ProductClientProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
+import tools.jackson.databind.ObjectMapper;
 
 @Component
 @RequiredArgsConstructor
 public class ProductClient {
 
     private final RestClient productRestClient;
+    private final ProductClientProperties props;
+    private final tools.jackson.databind.ObjectMapper objectMapper; // spring boot tự có bean
 
     public ProductDto getProduct(Long productId) {
         try {
             return productRestClient.get()
-                    .uri("/api/products/{id}", productId)
+                    .uri(props.getPaths().getById(), productId)
                     .retrieve()
                     .body(ProductDto.class);
         } catch (RestClientResponseException ex) {
@@ -41,7 +46,7 @@ public class ProductClient {
 
         try {
             productRestClient.post()
-                    .uri("/api/products/{id}/deduct", productId)
+                    .uri(props.getPaths().getDeduct(), productId)
                     .body(req)
                     .retrieve()
                     .toBodilessEntity();
@@ -57,21 +62,21 @@ public class ProductClient {
     }
 
     private String buildError(String prefix, RestClientResponseException ex) {
-        // try parse { "error": "..." }
-        try {
-            ErrorResponse er = productRestClient
-                    .get() // dummy to access message converters? (không cần)
-                    .retrieve()
-                    .body(ErrorResponse.class);
-        } catch (Exception ignore) {
-            // ignore
+        String body = ex.getResponseBodyAsString();
+        if (body == null || body.isBlank()) {
+            return prefix + ": " + ex.getStatusText();
         }
 
-        // Cách đơn giản & ổn định: lấy raw response body
-        String body = ex.getResponseBodyAsString();
-        if (body != null && !body.isBlank()) {
-            return prefix + ": " + body;
+        // Nếu body là JSON dạng { "error": "..." } thì parse ra cho sạch
+        try {
+            ErrorResponse er = objectMapper.readValue(body, ErrorResponse.class);
+            if (er != null && er.getError() != null && !er.getError().isBlank()) {
+                return prefix + ": " + er.getError();
+            }
+        } catch (Exception ignore) {
+            // body không phải JSON theo format ErrorResponse => fallback raw
         }
-        return prefix + ": " + ex.getStatusText();
+
+        return prefix + ": " + body;
     }
 }
