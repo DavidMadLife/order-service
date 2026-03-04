@@ -1,12 +1,10 @@
 package com.micro.orderservice.infrastructure.client;
 
-
 import com.micro.orderservice.application.exception.BadRequestException;
 import com.micro.orderservice.application.exception.NotFoundException;
 import com.micro.orderservice.infrastructure.client.dto.DeductStockRequest;
 import com.micro.orderservice.infrastructure.client.dto.ErrorResponse;
 import com.micro.orderservice.infrastructure.client.dto.ProductDto;
-import com.micro.orderservice.infrastructure.config.properties.ProductClientProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
@@ -18,14 +16,17 @@ import tools.jackson.databind.ObjectMapper;
 @RequiredArgsConstructor
 public class ProductClient {
 
+    // ✅ constants: thêm endpoint mới chỉ việc thêm constant
+    private static final String GET_BY_ID = "/api/products/{id}";
+    private static final String DEDUCT    = "/api/products/{id}/deduct";
+
     private final RestClient productRestClient;
-    private final ProductClientProperties props;
-    private final tools.jackson.databind.ObjectMapper objectMapper; // spring boot tự có bean
+    private final ObjectMapper objectMapper;
 
     public ProductDto getProduct(Long productId) {
         try {
             return productRestClient.get()
-                    .uri(props.getPaths().getById(), productId)
+                    .uri(GET_BY_ID, productId)
                     .retrieve()
                     .body(ProductDto.class);
         } catch (RestClientResponseException ex) {
@@ -46,7 +47,7 @@ public class ProductClient {
 
         try {
             productRestClient.post()
-                    .uri(props.getPaths().getDeduct(), productId)
+                    .uri(DEDUCT, productId)
                     .body(req)
                     .retrieve()
                     .toBodilessEntity();
@@ -67,15 +68,12 @@ public class ProductClient {
             return prefix + ": " + ex.getStatusText();
         }
 
-        // Nếu body là JSON dạng { "error": "..." } thì parse ra cho sạch
         try {
             ErrorResponse er = objectMapper.readValue(body, ErrorResponse.class);
             if (er != null && er.getError() != null && !er.getError().isBlank()) {
                 return prefix + ": " + er.getError();
             }
-        } catch (Exception ignore) {
-            // body không phải JSON theo format ErrorResponse => fallback raw
-        }
+        } catch (Exception ignore) {}
 
         return prefix + ": " + body;
     }

@@ -6,6 +6,7 @@ import com.micro.orderservice.application.usecase.CreateOrderUseCase;
 import com.micro.orderservice.application.usecase.GetOrderByIdUseCase;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -17,6 +18,7 @@ public class OrderController {
     private final GetOrderByIdUseCase getOrderByIdUseCase;
 
     @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
     public OrderResponse create(@RequestBody @Valid CreateOrderRequest request) {
         return createOrderUseCase.execute(request);
     }
